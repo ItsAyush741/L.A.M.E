@@ -1,163 +1,143 @@
-<?php
+<<?php
 session_start();
-if (!isset($_SESSION['student_id'], $_SESSION['name'])) {
-    header('Location: login.php');
-    exit;
-}
-
-$type = $_GET['type'] ?? '';
-if (!in_array($type, ['borrow', 'return'])) {
-    header('Location: homepage.php');
-    exit;
-}
-$host = 'localhost';
-$db = 'l.a.m.e';
-$user = 'root';
-$pass = '';
+if (!isset($_SESSION['student_id'], $_SESSION['name'])) { header('Location: login.php'); exit; }
+$host = "localhost"; $db = "l.a.m.e"; $user = "root"; $pass = "";
 $conn = new mysqli($host, $user, $pass, $db);
 if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
+$student_id = $_SESSION['student_id'];
+$name = $_SESSION['name'];
+$type = $_GET['type'] ?? '';
 $message = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $book_title = trim($_POST['book_title'] ?? '');
-    if ($type === 'borrow') {
-        $stmt = $conn->prepare("UPDATE book SET borrowed_by=?, due_date=DATE_ADD(CURDATE(), INTERVAL 14 DAY) WHERE title=? AND borrowed_by IS NULL");
-        $stmt->bind_param('ss', $_SESSION['student_id'], $book_title);
-        $stmt->execute();
-        $message = $stmt->affected_rows ? "Book borrowed!" : "Book unavailable.";
+
+if (($type == 'borrow' || $type == 'return') && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input = trim($_POST['book_title']);
+
+    // Determine if input is ID (number) or name (string)
+    if (ctype_digit($input)) { // treat as book_id
+        $stmt = $conn->prepare("SELECT book_id, bookname FROM book WHERE book_id=?");
+        $stmt->bind_param("i", $input);
+    } else { // treat as bookname
+        $stmt = $conn->prepare("SELECT book_id, bookname FROM book WHERE bookname=?");
+        $stmt->bind_param("s", $input);
+    }
+
+    $stmt->execute();
+    $stmt->bind_result($book_id, $bookname);
+    if ($stmt->fetch()) {
         $stmt->close();
+
+        if ($type == 'borrow') {
+            // Check if book is already borrowed (no open transaction)
+            $check_stmt = $conn->prepare("SELECT COUNT(*) FROM transaction WHERE book_id=? AND date_returned IS NULL");
+            $check_stmt->bind_param("i", $book_id);
+            $check_stmt->execute();
+            $check_stmt->bind_result($count);
+            $check_stmt->fetch();
+            $check_stmt->close();
+
+            if ($count == 0) {
+                $borrow_stmt = $conn->prepare("INSERT INTO transaction (student_id, student_name, book_id, bookname, date_borrowed) VALUES (?, ?, ?, ?, CURDATE())");
+                $borrow_stmt->bind_param("ssis", $student_id, $name, $book_id, $bookname);
+                $borrow_stmt->execute();
+                $borrow_stmt->close();
+                $message = "Book borrowed successfully!";
+            } else {
+                $message = "Sorry, the book is currently not available.";
+            }
+        } else { // return
+            $return_stmt = $conn->prepare("UPDATE transaction SET date_returned=CURDATE() WHERE student_id=? AND book_id=? AND date_returned IS NULL");
+            $return_stmt->bind_param("si", $student_id, $book_id);
+            $return_stmt->execute();
+            if ($return_stmt->affected_rows) {
+                $message = "Book returned successfully!";
+            } else {
+                $message = "You have not borrowed this book or it is already returned.";
+            }
+            $return_stmt->close();
+        }
     } else {
-        $stmt = $conn->prepare("UPDATE book SET borrowed_by=NULL, due_date=NULL WHERE title=? AND borrowed_by=?");
-        $stmt->bind_param('ss', $book_title, $_SESSION['student_id']);
-        $stmt->execute();
-        $message = $stmt->affected_rows ? "Book returned!" : "Book not found in borrowed list.";
+        $message = "No book found with that ID or name.";
         $stmt->close();
     }
 }
-$conn->close();
 ?>
-<!-- Place your transaction HTML/CSS here, showing $message if set-->
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>L.A.M.E. - <?php echo ucfirst($type); ?> Book</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Bootstrap CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
-        body { font-family: Arial, sans-serif; background: #f7fafc; margin: 0; }
-        .container {
-            max-width: 450px;
-            background: #ffffff;
-            margin: 5rem auto;
-            padding: 2rem 3rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 18px rgba(59,130,246,0.08);
-            text-align: center;
+        body {
+            background: #f7fafc;
+            font-family: 'Inter', Arial, sans-serif;
         }
-        h1 {
-            margin-bottom: 1em;
-            font-weight: 600;
-            color: #222;
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.3rem;
+        }
+        .main-card {
+            max-width: 480px;
+            margin: 48px auto;
+            padding: 2.5rem 2.2rem;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 2px 18px rgba(59, 130, 246, 0.08);
         }
         label {
-            display: block;
-            margin: 1em 0 0.5em 0;
-            text-align: left;
-            font-weight: 500;
+            font-weight: 600;
+            margin-bottom: .5rem;
         }
-        input[type="text"] {
-            width: 100%;
-            padding: 0.75em 1em;
-            border-radius: 10px;
-            border: 1px solid #c9d6e6;
-            font-size: 1rem;
-            box-sizing: border-box;
-        }
-        button {
-            margin-top: 1.5rem;
-            padding: 0.75em 2.5em;
+        .btn-primary {
             background: #1798d5;
-            color: white;
             border: none;
-            border-radius: 7px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.18s;
         }
-        button:hover {
+        .btn-primary:hover {
             background: #117ac4;
         }
         .message {
-            margin-top: 1.5rem;
-            font-weight: 500;
-            color: #166faa;
-        }
-        .navbar {
-            background: #fff;
-            border-bottom: 1px solid #e7eaf0;
-            padding: 0.5rem 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            max-width: 900px;
-            margin: auto;
-            margin-top: 2rem;
-        }
-        .logo {
-            display: flex;
-            align-items: center;
-            font-size: 1.3rem;
+            margin-top: 1.2rem;
             font-weight: 600;
-            margin-left: 2.5rem;
-        }
-        .icon {
-            font-size: 1.25em;
-            margin-right: 0.7em;
-        }
-        .brand {
-            letter-spacing: 0.03em;
-        }
-        .nav-links {
-            list-style: none;
-            display: flex;
-            margin: 0 2.5rem 0 0;
-            gap: 2.1em;
-        }
-        .nav-links li a {
-            text-decoration: none;
-            color: #222;
-            font-size: 1rem;
-            font-weight: 500;
-            transition: color 0.18s;
-        }
-        .nav-links li a:hover {
             color: #166faa;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="logo">
-            <span class="icon">&#9776;</span>
-            <span class="brand">L.A.M.E.</span>
+    <!-- NAVBAR -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+      <div class="container">
+        <a class="navbar-brand" href="#"><span class="icon">&#9776;</span> L.A.M.E.</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarContent">
+          <ul class="navbar-nav ms-auto fw-semibold">
+            <li class="nav-item"><a class="nav-link" href="homepage.php">Home</a></li>
+             <li class="nav-item"><a class="nav-link" href="catalog.php">Catalog</a></li>
+            <li class="nav-item"><a class="nav-link" href="#">My Account</a></li>
+          </ul>
         </div>
-        <ul class="nav-links">
-            <li><a href="homepage.php">Home</a></li>
-            <li><a href="#">Catalog</a></li>
-            <li><a href="#">My Account</a></li>
-        </ul>
+      </div>
     </nav>
-    <div class="container">
-        <h1><?php echo ucfirst($type); ?> Book</h1>
-        <form method="post" autocomplete="off">
-            <label for="book_title">Book Title</label>
-            <input type="text" name="book_title" id="book_title" required>
-            <button type="submit"><?php echo ucfirst($type); ?></button>
+
+    <!-- MAIN CARD CENTERED -->
+    <div class="main-card shadow-sm">
+        <h1 class="h3 mb-4 fw-bold"><?php echo ucfirst($type); ?> Book</h1>
+        <form method="post" autocomplete="off" novalidate>
+            <div class="mb-3">
+                <label for="book_title" class="form-label">Book ID or Book Name</label>
+                <input type="text" name="book_title" id="book_title" class="form-control" placeholder="Enter Book ID or Book Name" required />
+            </div>
+            <button type="submit" class="btn btn-primary w-100"><?php echo ucfirst($type); ?></button>
         </form>
         <?php if ($message): ?>
             <div class="message"><?php echo htmlspecialchars($message); ?></div>
         <?php endif; ?>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
 </body>
 </html>
