@@ -4,23 +4,24 @@ if (!isset($_SESSION['student_id'], $_SESSION['name'])) {
     header('Location: login.php');
     exit;
 }
+require_once 'db.php';
 
-$host = "localhost";
-$db = "l.a.m.e";
-$user = "root";
-$pass = "";
+$books    = [];
+$db_error = '';
 
-$conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
-
-// Fetch all books with their status (available/borrowed)
-$sql = "SELECT b.book_id, b.bookname, b.author,
-        (SELECT COUNT(*) FROM transaction t WHERE t.book_id = b.book_id AND t.date_returned IS NULL) AS is_borrowed
-        FROM book b";
-$books = [];
+$conn = get_db_connection();
+$sql  = "SELECT b.book_id, b.bookname, b.author,
+         (SELECT COUNT(*) FROM `transaction` t
+          WHERE t.book_id = b.book_id AND t.date_returned IS NULL) AS is_borrowed
+         FROM book b
+         ORDER BY b.bookname ASC";
 $result = $conn->query($sql);
-while ($row = $result->fetch_assoc()) {
-    $books[] = $row;
+if ($result) {
+    while ($row = $result->fetch_assoc()) {
+        $books[] = $row;
+    }
+} else {
+    $db_error = 'Could not load the catalog. Please try again later.';
 }
 $conn->close();
 ?>
@@ -28,7 +29,8 @@ $conn->close();
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <title>L.A.M.E. Catalog</title>
+    <title>L.A.M.E. – Book Catalog</title>
+    <meta name="description" content="Browse all books in the L.A.M.E. library catalog and see their availability." />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
@@ -42,22 +44,28 @@ $conn->close();
 <body>
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
   <div class="container">
-    <a class="navbar-brand" href="homepage.php"><span class="icon">&#9776;</span> L.A.M.E.</a>
+    <a class="navbar-brand" href="homepage.php"><span>&#9776;</span> L.A.M.E.</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarContent">
       <ul class="navbar-nav ms-auto fw-semibold">
         <li class="nav-item"><a class="nav-link" href="homepage.php">Home</a></li>
-        <li class="nav-item"><a class="nav-link active" aria-current="page" href="#">Catalog</a></li>
-        <li class="nav-item"><a class="nav-link" href="#">My Account</a></li>
+        <li class="nav-item"><a class="nav-link active" aria-current="page" href="catalog.php">Catalog</a></li>
+        <li class="nav-item"><a class="nav-link text-danger" href="logout.php">Logout</a></li>
       </ul>
     </div>
   </div>
 </nav>
+
 <div class="container mt-5">
-    <h2 class="fw-bold mb-4">Book Catalog</h2>
-    <input class="form-control search-box mb-4" id="bookSearch" type="text" placeholder="Search by title or author..." onkeyup="filterTable()" />
+    <h1 class="fw-bold mb-4">Book Catalog</h1>
+
+    <?php if ($db_error): ?>
+      <div class="alert alert-danger"><?php echo htmlspecialchars($db_error); ?></div>
+    <?php else: ?>
+    <input class="form-control search-box mb-4" id="bookSearch" type="text"
+           placeholder="Search by title or author..." onkeyup="filterTable()" />
 
     <div class="table-responsive">
         <table class="table table-hover catalog-table" id="booksTable">
@@ -70,6 +78,9 @@ $conn->close();
                 </tr>
             </thead>
             <tbody>
+                <?php if (empty($books)): ?>
+                <tr><td colspan="4" class="text-muted text-center">No books found in catalog.</td></tr>
+                <?php else: ?>
                 <?php foreach ($books as $book): ?>
                 <tr>
                     <td><?php echo htmlspecialchars($book['book_id']); ?></td>
@@ -84,24 +95,25 @@ $conn->close();
                     </td>
                 </tr>
                 <?php endforeach; ?>
+                <?php endif; ?>
             </tbody>
         </table>
     </div>
+    <?php endif; ?>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Simple search filter
 function filterTable() {
-    var input = document.getElementById("bookSearch");
-    var filter = input.value.toLowerCase();
-    var rows = document.querySelectorAll("#booksTable tbody tr");
+    var filter = document.getElementById('bookSearch').value.toLowerCase();
+    var rows   = document.querySelectorAll('#booksTable tbody tr');
     rows.forEach(function(row) {
-        var title = row.cells[1].textContent.toLowerCase();
+        if (row.cells.length < 3) return;
+        var title  = row.cells[1].textContent.toLowerCase();
         var author = row.cells[2].textContent.toLowerCase();
-        row.style.display = (title.includes(filter) || author.includes(filter)) ? "" : "none";
+        row.style.display = (title.includes(filter) || author.includes(filter)) ? '' : 'none';
     });
 }
 </script>
 </body>
 </html>
-
