@@ -1,29 +1,24 @@
 <?php
-/**
- * db.php — Centralized database connection for L.A.M.E.
- *
- * All pages should require_once this file and call get_db_connection().
- * Change credentials here once and it applies everywhere.
- */
+require_once __DIR__ . '/vendor/autoload.php';
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'l.a.m.e');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
 
-/**
- * Returns a live mysqli connection, or exits with an error message on failure.
- */
-function get_db_connection(): mysqli {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+$dotenv->required(['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS']);
+
+function get_db_connection(): mysqli
+{
+    $conn = new mysqli(
+        $_ENV['DB_HOST'],
+        $_ENV['DB_USER'],
+        $_ENV['DB_PASS'],
+        $_ENV['DB_NAME'],
+        (int) $_ENV['DB_PORT']
+    );
     if ($conn->connect_error) {
-        // In production, log this instead of exposing details
+        error_log('DB connection failed: ' . $conn->connect_error);
         http_response_code(500);
-        die('<p style="color:red;font-family:Arial,sans-serif;padding:2rem;">'
-            . '<strong>Database connection failed.</strong><br>'
-            . 'Please check that MySQL is running and the credentials in db.php are correct.<br>'
-            . '<em>Error: ' . htmlspecialchars($conn->connect_error) . '</em>'
-            . '</p>');
+        die('<p style="color:red;padding:2rem"><strong>Database connection failed.</strong></p>');
     }
     return $conn;
 }
