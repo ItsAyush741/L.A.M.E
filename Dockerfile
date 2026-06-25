@@ -1,12 +1,11 @@
-FROM php:8.2-apache
+FROM php:8.2-cli
 
-RUN apt-get update && apt-get install -y \
-    && docker-php-ext-install mysqli pdo pdo_mysql \
-    && a2dismod mpm_event mpm_worker \
-    && a2enmod mpm_prefork rewrite
+RUN docker-php-ext-install mysqli pdo pdo_mysql
 
-COPY . /var/www/html/
+WORKDIR /var/www/html
 
-RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+COPY . .
+
+CMD ["php", "-S", "0.0.0.0:80"]
 
 EXPOSE 80
