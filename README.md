@@ -37,32 +37,65 @@ L.A.M.E/
 ## Setup Instructions
 
 ### Prerequisites
-- [XAMPP](https://www.apachefriends.org/) (or WAMP / LAMP / any PHP+MySQL stack)
-- PHP 8.0 or newer
-- MySQL 5.7 / MariaDB 10.4 or newer
+- **For Online Deployment (Cloud):** A [Railway](https://railway.app/) account.
+- **For Local Development (Optional):** XAMPP (or WAMP / LAMP / any PHP+MySQL stack), PHP 8.0+, MySQL 5.7+ / MariaDB 10.4+.
 
-### Step 1 — Start Your Server
+---
+
+### Option A — Cloud Deployment (Railway)
+
+#### Step 1 — Deploy on Railway
+1. Push your repository to GitHub.
+2. Log into [Railway](https://railway.app/) and create a new project.
+3. Select **Deploy from GitHub repo** and choose your repository.
+4. Railway will automatically build and deploy your PHP application.
+
+#### Step 2 — Add a MySQL Database on Railway
+1. In your Railway project dashboard, click **+ New** and select **Database > Add MySQL**.
+2. Wait for the database service to provision.
+
+#### Step 3 — Link Environment Variables
+In your web service settings on Railway, navigate to the **Variables** tab and reference the MySQL variables:
+- `MYSQLHOST` = `${{MySQL.MYSQLHOST}}`
+- `MYSQLPORT` = `${{MySQL.MYSQLPORT}}`
+- `MYSQLUSER` = `${{MySQL.MYSQLUSER}}`
+- `MYSQLPASSWORD` = `${{MySQL.MYSQLPASSWORD}}`
+- `MYSQLDATABASE` = `${{MySQL.MYSQLDATABASE}}`
+
+#### Step 4 — Import SQL Files into Railway MySQL
+You can import the database schema and sample data into your Railway MySQL database using a terminal (replace bracketed terms with credentials found under the **Variables** tab of your Railway MySQL service):
+```bash
+mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < student.sql
+mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < book.sql
+mysql -h <MYSQLHOST> -P <MYSQLPORT> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < transaction.sql
+```
+*(Alternatively, connect using a database manager like DBeaver, TablePlus, or VS Code Database Client to run the SQL files on the remote database.)*
+
+---
+
+### Option B — Local Setup (XAMPP)
+
+#### Step 1 — Start Your Server
 Launch XAMPP Control Panel and start **Apache** and **MySQL**.
 
-### Step 2 — Create the Database
+#### Step 2 — Create the Database
 1. Open **phpMyAdmin**: `http://localhost/phpmyadmin`
 2. Click **New** and create a database named exactly: `l.a.m.e`
    > ⚠️ The name must include the dots — it's `l.a.m.e`, not `lame`.
 
-### Step 3 — Import SQL Files (in order)
+#### Step 3 — Import SQL Files (in order)
 In phpMyAdmin, select the `l.a.m.e` database, go to the **Import** tab, and import each file **in this order**:
-
 1. `student.sql`
 2. `book.sql`
 3. `transaction.sql`
 
-### Step 4 — Copy Files to Web Root
+#### Step 4 — Copy Files to Web Root
 Copy the entire `L.A.M.E/` folder into your XAMPP `htdocs` directory:
 ```
 C:\xampp\htdocs\LAME\
 ```
 
-### Step 5 — Configure Database Credentials (if needed)
+#### Step 5 — Configure Database Credentials (if needed)
 Open `db.php` and update the constants if your MySQL setup is different:
 ```php
 define('DB_HOST', 'localhost');
@@ -71,7 +104,7 @@ define('DB_USER', 'root');
 define('DB_PASS', '');        // ← add your MySQL password here
 ```
 
-### Step 6 — Open the App
+#### Step 6 — Open the App
 Navigate to: `http://localhost/LAME/login.php`
 
 ---
